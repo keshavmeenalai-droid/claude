@@ -44,6 +44,33 @@ Split of the growth bucket after all orders: INDY 32% · stocks 64% · cash 4%.
 
 Cash before the stock orders: **$35,595.62**. After MU: ≈ $33,800.
 
+### 3.1a Treasury bonds (operating reserve)
+
+Units for five bonds come from the 13 Oct planning model; WInS shows six bonds worth ≈ $245,000 (the sixth is the Feb 2036 issue). Confirm all quantities in WInS Open Positions.
+
+| Bond | Units | WInS price 13 Oct | Cost incl. accrued | Face | YTM | Pays for | Plan |
+|---|---|---|---|---|---|---|---|
+| 4.500% 15-Feb-2036 | ≈ 7 (confirm) | $1,029.50 | ≈ $7,200 | ≈ $7,000 | 4.1% | Extra cover for Jan 2037 | Hold to maturity |
+| 4.750% 15-Feb-2037 | 38 | $965.00 | $36,952 | $38,000 | 5.19% | Jan 2037 | Sell 1 Jan 2037 |
+| 4.500% 15-May-2038 | 86 | $936.01 | $81,101 | $86,000 | 5.24% | Jan 2038 + Jan 2039 | Sell 1 Jan 2038; keep rest as cash for 2039 |
+| 4.625% 15-Feb-2040 | 45 | $914.52 | $41,478 | $45,000 | 5.54% | Jan 2040 | Sell 1 Jan 2040 |
+| 4.250% 15-Nov-2040 | 46 | $883.22 | $41,426 | $46,000 | 5.45% | Jan 2041 | Hold to maturity |
+| 3.125% 15-Nov-2041 | 48 | $755.07 | $36,856 | $48,000 | 5.54% | Jan 2042 | Hold to maturity |
+| Five model bonds | 263 | | $237,814 | $263,000 | 5.37% avg | | |
+
+Coupons ≈ $11,200 a year (+ ≈ $300 from the 2036 bonds) from 15 Nov 2026, swept into SGOV inside the reserve.
+
+### 3.1b ETFs (held and planned)
+
+| Ticker | Name | Status | Job | Units | Price |
+|---|---|---|---|---|---|
+| INDY | iShares India 50 ETF | Held | Growth: India's 50 largest companies (fee 0.89%) | ≈ 403 (confirm) | $41.34 (23 Oct) |
+| SGOV | iShares 0–3 Month Treasury Bond ETF | Planned from Nov 2026 | Saved bond interest; facility cash from 2031 | as interest arrives | $100.52 (12 Oct) |
+| IBTO | iShares iBonds Dec 2033 Term Treasury | Planned Jan 2028 | Jan 2034 payment | 196 | $23.00 (12 Oct) |
+| IBTP | iShares iBonds Dec 2034 Term Treasury | Planned Jan 2028 | Jan 2035 payment | 1,394 | $24.07 (12 Oct) |
+| IBTQ | iShares iBonds Dec 2035 Term Treasury | Planned Jan 2028 | Jan 2036 payment | 1,478 | $23.67 (12 Oct) |
+| IBTM | iShares iBonds Dec 2032 Term Treasury | Jan 2028, only if yield ≥ 4.5% | Floor for the facility contribution | 1,422 | $21.76 (12 Oct) |
+
 ### 3.2 Pending orders
 
 Reference prices: 23 Oct 2026 (US/Toronto at 14:15 ET; Tokyo, Stockholm, Oslo at the 23 Oct close). Recompute shares if the live price is more than 2% above the reference.
@@ -311,7 +338,23 @@ Watchlist (fail only E3, the trend rule): HMY 72.2 · AU 71.8 · LUG 71.5 · Sam
 | 2 | Only if IBTM (Dec 2032 Treasury ETF) yields ≥ 4.5% | 40% of the remainder into IBTM as a floor for the facility contribution | $30,865 (1,422 shares) |
 | 3 | Always | Remainder: 70% stocks (QVM rules), 30% INDY | $32,402 stocks + $13,887 INDY |
 
-Base case = Treasury yields unchanged to Jan 2028.
+Base case = Treasury yields unchanged to Jan 2028. First trading day: Monday 3 Jan 2028.
+
+**Exact base-case purchases:** IBTO 196 at $22.92 ($4,492) · IBTP 1,394 at $23.98 ($33,431) · IBTQ 1,478 at $23.58 ($34,847) · commissions $75 · IBTM 1,422 at $21.69 ($30,865 incl. $25; worth ≈ $38,711 at the Dec 2032 payout) · stocks $32,402 · INDY $13,887 · total $150,000.
+
+**If rates change:**
+
+| Scenario | Step 1 reserve | IBTM yield | Step 2 floor | Step 3 stocks | Step 3 INDY |
+|---|---|---|---|---|---|
+| Base: yields unchanged | $72,771 | 5.08% | $30,840 | $32,402 | $13,887 |
+| Yields fall 3 points | $88,034 | 2.08% (below 4.5%) | skipped | $43,324 | $18,567 |
+| Yields rise 1 point | $68,390 | 6.08% | $32,604 | $34,235 | $14,672 |
+
+Worst tested: a 4-point fall makes step 1 cost $93,930 (still inside $150,000). The floor is bought in ≈ 72% of simulated paths.
+
+**Stock money in Jan 2028:** re-score the universe (it is the January review) · target size per stock grows with the growth money (1.25% risk; e.g. ≈ $4,200 volatile / $5,000 normal at $100,000 of growth money) · top up holdings that still pass E1–E4 to the new size · replace failing holdings with the best qualifier where limits allow · unplaced money follows D1.
+
+**Planning-model outlook (13 Oct model, before the final allocation; rerun with final holdings):** facility contribution after the $50,000 buffer: base $149,717 · low returns $124,290 · high $171,346 · crash before 2033 $125,385 · everything bad at once $80,316 · simulation 80% range $83,098–$230,780 (median $140,607). All ten payments are paid in every case.
 
 ### 8.2 Glide path and payments
 
