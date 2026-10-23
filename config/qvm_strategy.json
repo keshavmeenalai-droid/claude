@@ -1,0 +1,286 @@
+{
+  "meta": {
+    "name": "QVM Compass strategy config",
+    "client": "Laura Gao",
+    "as_of": "2026-10-23T14:15:00-04:00",
+    "base_currency": "USD",
+    "notes": "Single source of truth for the terminal. Prices are reference values from Yahoo Finance (US/Toronto at 14:15 New York time on 2026-10-23; Tokyo, Stockholm, Oslo = 2026-10-23 close). The terminal must refresh live prices before any order."
+  },
+
+  "account": {
+    "platform": "WInS (StockTrak)",
+    "total_value_usd_approx": 299813,
+    "cash_usd_before_stock_orders": 35595.62,
+    "commission_per_trade_usd": 25,
+    "trade_limit": 200,
+    "trades_used_before_stocks": 7,
+    "min_share_price_usd": 3,
+    "fractional_shares": false,
+    "trading_ends": "2026-11-06",
+    "buckets": {
+      "operating_reserve": {
+        "purpose": "Pay ten $50,000 operating payments, 1 Jan 2033 to 1 Jan 2042",
+        "holdings": "US Treasury bonds held to maturity; bond interest swept into SGOV inside the reserve",
+        "value_usd_approx": 245000,
+        "rule": "Never sold to buy stocks; never part of the stock engine"
+      },
+      "growth_bucket": {
+        "purpose": "Grow the facility contribution due Jan 2033",
+        "instruments_allowed": ["INDY (iShares India 50 ETF)", "individual stocks selected by QVM rules", "cash"],
+        "instruments_not_allowed": ["other ETFs or funds"],
+        "value_definition": "INDY market value + cash + stock positions market value",
+        "value_usd_at_sizing": 52255
+      }
+    }
+  },
+
+  "parameters": {
+    "P1_min_market_cap_usd": {"value": 10000000000, "allowed_range": [5000000000, 20000000000]},
+    "P2_min_roic_pct": {"value": 10, "allowed_range": [8, 12]},
+    "P3_min_interest_cover_x": {"value": 8, "allowed_range": [5, 10], "fallback_if_blank": "debt / EBITDA <= 1.5"},
+    "P4_pillar_weights": {"value": {"Q": 0.40, "V": 0.30, "M": 0.30}, "allowed_range_each": [0.20, 0.50]},
+    "P5_buy_score": {"value": {"qvm_min": 60, "pillar_min": 25}, "allowed_range": {"qvm_min": [55, 70], "pillar_min": [20, 30]}},
+    "P6_sell_score_qvm_below": {"value": 35, "allowed_range": [30, 40]},
+    "P7_equity_premium_pts": {"value": 3.5, "allowed_range": [3, 5]},
+    "P8_growth_cap_pct": {"value": 10, "allowed_range": [8, 12]},
+    "P9_trend_ma_days": {"value": 200, "allowed_range": [150, 250]},
+    "P10_risk_per_stock_pct_of_growth_bucket": {"value": 1.25, "allowed_range": [0.75, 1.25], "changed": "2026-10-23 from 1.0"},
+    "P11_hard_stop_pct": {"value": {"normal": 25, "volatile": 30}, "volatile_if_monthly_sd_above": 0.10, "allowed_range": [20, 35]},
+    "P12_position_cap_pct_of_growth_bucket": {"value": {"max_at_cost": 6, "trim_above": 8, "trim_to": 6}, "allowed_range": [5, 10]},
+    "P13_concentration": {"value": {"sector_max_pct_of_stock_money": 30, "max_stocks_per_industry": 2, "max_stocks_per_theme": 3}, "allowed_range_sector": [25, 35]},
+    "P14_number_of_stocks": {"value": 15, "allowed_range": [6, 20], "changed": "2026-10-23 from 10"},
+    "P15_swap": {"value": {"min_qvm_gap": 15, "max_swaps_per_quarter": 2}, "allowed_range_gap": [10, 20]},
+    "P16_valuation_exit_pts_over_treasury": {"value": {"sell_half_below": 1.0, "sell_all_below": 0.0}, "allowed_range": [0, 2]},
+    "P17_phase2_start": {"value": "2031-01-01"},
+    "P18_phase2_red_cut_pct": {"value": 50, "allowed_range": [33, 100]},
+    "change_policy": "Change only at the January review, inside allowed_range, with a change-log entry (date, old, new, reason, approver). Never to rescue a position."
+  },
+
+  "live_inputs": {
+    "us_10y_treasury_yield_pct": {"value": 5.13, "source": "Fed H.15 / WInS Economic Rates", "refresh": "daily"},
+    "hurdle_pct": {"formula": "us_10y_treasury_yield_pct + P7", "value": 8.63},
+    "market_light_index": {"symbol": "SPY", "ma_days": 200, "ref_price": 760.89, "ref_ma200": 726.65, "state": "GREEN"}
+  },
+
+  "universe": {
+    "exchanges": "All exchanges allowed on WInS (41 per Session Rules) except Moscow",
+    "listing": "One line per company: home listing; use US ADR if home exchange not on WInS",
+    "security_types": ["common stock", "depositary receipt"],
+    "exclude_sectors": ["banks", "insurers", "REITs", "consumer lenders", "brokers"],
+    "exclude_products": ["leveraged or inverse products", "SPACs", "OTC listings", "anything WInS restricts"],
+    "min_market_cap_usd": "P1",
+    "min_price_usd": 3
+  },
+
+  "quality_gate": {
+    "all_must_pass": true,
+    "G1_investable": "market cap >= P1, price >= $3, >= 5 years of financial statements, not an excluded sector",
+    "G2_profitable": "ROIC (TTM; last FY if blank) >= P2 AND net income > 0 in >= 4 of last 5 fiscal years",
+    "G3_solvent": "operating income / interest expense (last FY) >= P3; if blank, debt / EBITDA <= 1.5",
+    "G4_cash_generative": "free cash flow > 0 in >= 4 of last 5 fiscal years",
+    "G5_growing": "5-year revenue CAGR >= 0% in the company's own currency",
+    "data_rule": "No data, no trade: a blank or unverifiable gate input fails the gate"
+  },
+
+  "scoring": {
+    "pool": "All companies that pass the quality gate on the run date",
+    "currency": "Growth, FCF yield and momentum converted to USD",
+    "metrics": [
+      {"id": "Q1", "pillar": "Q", "name": "ROIC", "formula": "ROIC TTM (last FY if blank)", "better": "higher"},
+      {"id": "Q2", "pillar": "Q", "name": "Gross profitability", "formula": "gross_margin_pct * asset_turnover / 100", "better": "higher"},
+      {"id": "Q3", "pillar": "Q", "name": "Revenue growth 5y (USD)", "formula": "5-year revenue CAGR in USD", "better": "higher"},
+      {"id": "V1", "pillar": "V", "name": "FCF yield", "formula": "100 / price_to_fcf  (or FCF / market cap * 100)", "better": "higher"},
+      {"id": "V2", "pillar": "V", "name": "Earnings yield", "formula": "100 / pe", "better": "higher"},
+      {"id": "V3", "pillar": "V", "name": "P/E position in 5y range", "formula": "(pe - pe_min_5y) / (pe_max_5y - pe_min_5y); 5y range from P/E now and 1, 3, 5 years back", "better": "lower"},
+      {"id": "M1", "pillar": "M", "name": "12-1 momentum (USD)", "formula": "((1 + ret_52w/100) / (1 + ret_30d/100) - 1) * 100", "better": "higher"},
+      {"id": "M2", "pillar": "M", "name": "Trend strength", "formula": "(price / ma200 - 1) * 100", "better": "higher"}
+    ],
+    "percentile": "Rank each metric 0-100 across the pool (PERCENTRANK.INC * 100; ties share the average rank). For 'lower' metrics use 100 - rank. Blank metric = skipped, never filled.",
+    "pillar_score": "Mean of the pillar's available metric percentiles",
+    "qvm": "0.40 * Q + 0.30 * V + 0.30 * M",
+    "expected_return_pct": "fcf_yield_pct + clamp(min(rev_growth_3y_usd, rev_growth_5y_usd), 0, P8)",
+    "volatility": "Std. dev. of 60 monthly returns (WInS Share Performance); volatile if > 0.10"
+  },
+
+  "entry_rules": {
+    "all_must_pass": true,
+    "E1_score": "qvm >= 60 AND min(Q, V, M) >= 25",
+    "E2_price": "expected_return_pct >= hurdle_pct",
+    "E3_trend": "price > ma200",
+    "E4_market": "market light != RED (YELLOW = half size; in Phase 2 YELLOW = no new entries)",
+    "on_fail": {
+      "E1": "not now; re-score next quarter",
+      "E2": "reject; too expensive",
+      "E3": "watchlist; buy first tranche when it closes back above ma200 and E1, E2 still pass",
+      "E4": "no new stock entries"
+    }
+  },
+
+  "sizing": {
+    "risk_usd": "growth_bucket_value * P10 / 100",
+    "position_usd": "risk_usd / stop_pct",
+    "position_usd_at_sizing": {"normal_25pct_stop": 2612.75, "volatile_30pct_stop": 2177.29, "risk_usd": 653.19},
+    "shares": "round(position_usd / price_usd) to nearest whole share (no fractional shares)",
+    "yellow_light": "position_usd * 0.5",
+    "tranches": "One order per stock. If the company reports earnings within 5 trading days: buy half now; second half on max(first trading day after the report, 5 trading days after tranche 1), only if E1-E4 still pass and no thesis breaker (X1) fired.",
+    "adding": "Adding to a position is a new entry: E1-E4 must pass; never add below ma200",
+    "cap_check": "position at cost <= P12.max_at_cost"
+  },
+
+  "execution": {
+    "us_canada": {"order_type": "MARKET", "when": "regular hours, not the first 30 minutes, at least 15 minutes before the close"},
+    "foreign": {"order_type": "LIMIT", "limit_price": "current WInS ask", "duration": "DAY", "when": "after the first 30 minutes of that exchange"},
+    "price_drift_rule": "If price is > 2% above ref_price, recompute shares before ordering",
+    "stop_order": {
+      "place": "Immediately after each buy fills",
+      "order": "SELL (never SELL SHORT), type STOP, quantity = all shares held, stop_price = fill_price * (1 - stop_pct/100), duration GTC",
+      "after_second_tranche": "Cancel the old stop; new stop for all shares at avg_cost * (1 - stop_pct/100)",
+      "not_used": ["STOP LIMIT", "TRAILING STOP"]
+    },
+    "trading_note": {
+      "required": true,
+      "max_chars": 300,
+      "template": "BUY {shares} {ticker}: QVM {qvm} (Q{q}/V{v}/M{m}). {why_one_line}. Grows Laura's facility money. Stop order {stop_pct}% below cost. Sell if {thesis_breaker}.",
+      "exclude": ["expected return figures"]
+    }
+  },
+
+  "exit_rules": [
+    {"id": "X1", "name": "Thesis break", "trigger": "Any thesis breaker for the stock fires", "action": "Sell all within 5 trading days"},
+    {"id": "X2", "name": "Score decay", "trigger": "QVM < P6 at the quarterly re-score (35-60 = hold, no adds)", "action": "Sell all"},
+    {"id": "X3", "name": "Valuation", "trigger": "expected_return < treasury + 1 pt (half) / < treasury (all)", "action": "Sell half / sell all"},
+    {"id": "X4", "name": "Hard stop", "trigger": "Standing WInS stop order at 25% (30% volatile) below average cost", "action": "Automatic sell"},
+    {"id": "X5", "name": "Trend break", "trigger": "Month-end close < ma200 AND 12-1 momentum < 0", "action": "Sell half; if still true next month-end, sell the rest"},
+    {"id": "X6", "name": "Too big", "trigger": "Position > 8% of growth bucket", "action": "Trim to 6%"},
+    {"id": "X7", "name": "Better idea", "trigger": "A new stock passes E1-E4 and scores >= 15 QVM points above the weakest holding", "action": "Swap (max 2 per quarter)"},
+    {"id": "X8", "name": "Laura's timeline", "trigger": "Glide-path date or Phase-2 RED", "action": "Trim lowest-QVM names first; move proceeds to SGOV"},
+    {"id": "REBUY", "name": "Re-buy lockout", "trigger": "Stock sold under X4 or X5", "action": "May re-buy only after 3 months and only if E1-E4 pass"},
+    {"id": "NOT_A_REASON", "name": "Not reasons to sell", "list": ["a bad day or week", "headline without a thesis breaker", "other teams' picks", "'feels expensive' without X3"]}
+  ],
+
+  "market_light": {
+    "GREEN": {"condition": "SPY close > SPY ma200", "phase1": "normal entries", "phase2": "normal entries"},
+    "YELLOW": {"condition": "a daily close < ma200, not yet confirmed at month-end", "phase1": "new entries at half size", "phase2": "no new entries"},
+    "RED": {"condition": "month-end close < ma200", "phase1": "no new stock entries; holdings follow their own rules", "phase2": "cut stock sleeve by P18 (weakest QVM first) into SGOV; rebuy after one month-end back above"},
+    "phase1": "now to 2030-12-31",
+    "phase2": "2031-01-01 to 2032-12-31"
+  },
+
+  "positions": [
+    {"ticker": "MU", "status": "HELD", "shares": 2, "avg_cost_usd": 885.10, "cost_note": "confirm actual fill in WInS"},
+    {"ticker": "INDY", "status": "HELD", "type": "ETF", "value_usd_approx": 16659, "shares": "confirm in WInS"},
+    {"ticker": "US_TREASURY_LADDER", "status": "HELD", "type": "bonds", "count": 6, "maturities": "Feb 2036 to Nov 2041", "value_usd_approx": 245000, "detail": "Load exact bonds and quantities from WInS Open Positions"}
+  ],
+
+  "stocks": [
+    {"ticker": "MU",   "name": "Micron Technology", "exchange": "Nasdaq", "country": "US", "ccy": "USD", "sector": "Information Technology", "industry": "Semiconductors", "theme": "AI", "qvm": 91.6, "q": 97, "v": 82, "m": 93, "exp_return_pct": 15.8, "monthly_sd": 0.196, "stop_pct": 30, "target_shares": 2, "ref_price": 885.10, "next_earnings": "2026-12-23 (est.)", "thesis_breakers": ["revenue falls two quarters in a row", "gross margin below 60%", "guidance cut by more than 15%"], "why": "Memory chips for AI. Top score; sales tripled in a year"},
+    {"ticker": "EXEL", "name": "Exelixis", "exchange": "Nasdaq", "country": "US", "ccy": "USD", "sector": "Health Care", "industry": "Biotechnology", "theme": null, "qvm": 86.2, "q": 91, "v": 78, "m": 88, "exp_return_pct": 17.0, "monthly_sd": 0.093, "stop_pct": 25, "target_shares": 40, "ref_price": 64.85, "next_earnings": "2026-10-29 (after close)", "thesis_breakers": ["CABOMETYX revenue falls two quarters in a row", "zanzalintinib fails Phase 3", "US generics allowed before 2031"], "why": "Cancer medicines. No debt; P/E at the bottom of its 5-year range"},
+    {"ticker": "INCY", "name": "Incyte", "exchange": "Nasdaq", "country": "US", "ccy": "USD", "sector": "Health Care", "industry": "Biotechnology", "theme": null, "qvm": 79.7, "q": 82, "v": 85, "m": 72, "exp_return_pct": 18.0, "monthly_sd": 0.076, "stop_pct": 25, "target_shares": 22, "ref_price": 115.65, "next_earnings": "2026-10-29 (before open)", "thesis_breakers": ["total revenue falls year on year", "guidance cut", "newer products stop growing"], "why": "Blood-cancer medicines. Revenue up 21% in 2025 at a low P/E"},
+    {"ticker": "NVDA", "name": "NVIDIA", "exchange": "Nasdaq", "country": "US", "ccy": "USD", "sector": "Information Technology", "industry": "Semiconductors", "theme": "AI", "qvm": 73.6, "q": 100, "v": 51, "m": 62, "exp_return_pct": 12.5, "monthly_sd": 0.145, "stop_pct": 30, "target_shares": 10, "ref_price": 211.70, "next_earnings": "2026-11-17", "thesis_breakers": ["data-centre revenue falls quarter on quarter twice", "gross margin below 65%"], "why": "AI chips. Top quality score in the screen"},
+    {"ticker": "VAR",  "name": "Vår Energi", "exchange": "Oslo Børs", "country": "Norway", "ccy": "NOK", "sector": "Energy", "industry": "Oil & Gas E&P", "theme": null, "qvm": 72.9, "q": 53, "v": 83, "m": 89, "exp_return_pct": 21.7, "monthly_sd": 0.102, "stop_pct": 30, "target_shares": 345, "ref_price": 58.94, "next_earnings": "reported 2026-10-21", "thesis_breakers": ["dividend cut", "2026 output below 390,000 boe/d", "FCF yield below 8% at a re-score"], "why": "Offshore oil and gas. 20% FCF yield and big dividends"},
+    {"ticker": "EVO",  "name": "Evolution AB", "exchange": "Nasdaq Stockholm", "country": "Sweden", "ccy": "SEK", "sector": "Consumer Discretionary", "industry": "Casinos & Gaming", "theme": null, "qvm": 71.9, "q": 63, "v": 77, "m": 79, "exp_return_pct": 18.2, "monthly_sd": 0.103, "stop_pct": 30, "target_shares": 26, "ref_price": 841.40, "next_earnings": "reported 2026-10-23", "thesis_breakers": ["revenue keeps falling year on year", "EBITDA margin below 60%"], "why": "Live online casino games. Very high margins at a low P/E"},
+    {"ticker": "ATZ",  "name": "Aritzia", "exchange": "Toronto (TSX)", "country": "Canada", "ccy": "CAD", "sector": "Consumer Discretionary", "industry": "Apparel Retail", "theme": null, "qvm": 70.5, "q": 86, "v": 45, "m": 75, "exp_return_pct": 13.7, "monthly_sd": 0.132, "stop_pct": 30, "target_shares": 20, "ref_price": 154.78, "next_earnings": "2027-01-07 (est.)", "thesis_breakers": ["fiscal 2027 revenue guidance cut below C$4.4B", "a quarter grows less than 10%"], "why": "Women's fashion brand. Sales up 35%, growing in the US"},
+    {"ticker": "ADBE", "name": "Adobe", "exchange": "Nasdaq", "country": "US", "ccy": "USD", "sector": "Information Technology", "industry": "Software", "theme": null, "qvm": 69.6, "q": 84, "v": 87, "m": 33, "exp_return_pct": 20.1, "monthly_sd": 0.113, "stop_pct": 30, "target_shares": 8, "ref_price": 265.20, "next_earnings": "2026-12-09", "thesis_breakers": ["revenue growth below 5%", "subscription revenue falls"], "why": "Design and PDF software. Strong, cheap, subscription cash"},
+    {"ticker": "ULTA", "name": "Ulta Beauty", "exchange": "Nasdaq", "country": "US", "ccy": "USD", "sector": "Consumer Discretionary", "industry": "Specialty Retail", "theme": null, "qvm": 68.2, "q": 81, "v": 57, "m": 62, "exp_return_pct": 10.9, "monthly_sd": 0.094, "stop_pct": 25, "target_shares": 4, "ref_price": 620.27, "next_earnings": "2026-12-03", "thesis_breakers": ["comparable sales fall two quarters in a row"], "why": "Biggest US beauty retailer. Steady shoppers balance the chip stocks"},
+    {"ticker": "PAYC", "name": "Paycom Software", "exchange": "NYSE", "country": "US", "ccy": "USD", "sector": "Industrials", "industry": "Professional Services", "theme": null, "qvm": 67.9, "q": 73, "v": 53, "m": 76, "exp_return_pct": 14.5, "monthly_sd": 0.131, "stop_pct": 30, "target_shares": 8, "ref_price": 274.97, "next_earnings": "2026-11-04 (after close)", "thesis_breakers": ["revenue growth below 7%", "full-year guidance cut"], "why": "Payroll software. Recurring revenue, almost no debt"},
+    {"ticker": "APA",  "name": "APA Corporation", "exchange": "Nasdaq", "country": "US", "ccy": "USD", "sector": "Energy", "industry": "Oil & Gas E&P", "theme": null, "qvm": 65.9, "q": 46, "v": 65, "m": 93, "exp_return_pct": 11.4, "monthly_sd": 0.126, "stop_pct": 30, "target_shares": 42, "ref_price": 51.74, "next_earnings": "2026-11-04 (after close)", "thesis_breakers": ["realised US oil price below $65/bbl", "debt above 1.5x EBITDA", "dividend cut"], "why": "US, Egypt, North Sea oil and gas. 11.4% FCF yield; inflation hedge"},
+    {"ticker": "CF",   "name": "CF Industries", "exchange": "NYSE", "country": "US", "ccy": "USD", "sector": "Materials", "industry": "Chemicals (Fertilizers)", "theme": null, "qvm": 65.7, "q": 52, "v": 82, "m": 67, "exp_return_pct": 10.3, "monthly_sd": 0.104, "stop_pct": 30, "target_shares": 18, "ref_price": 121.46, "next_earnings": "2026-11-04", "thesis_breakers": ["free cash flow negative for two quarters", "dividend cut"], "why": "Nitrogen fertiliser. Adds a new sector, strong cash flow", "note": "Volatility borderline (estimated 0.104). If WInS shows <= 0.10: stop 25%, target 21 shares"},
+    {"ticker": "6532", "name": "BayCurrent", "exchange": "Tokyo (TSE)", "country": "Japan", "ccy": "JPY", "sector": "Industrials", "industry": "Professional Services", "theme": null, "qvm": 65.4, "q": 90, "v": 25, "m": 72, "exp_return_pct": 12.2, "monthly_sd": 0.135, "stop_pct": 30, "target_shares": 30, "ref_price": 11500, "next_earnings": "2027-01-14 (est.)", "thesis_breakers": ["revenue growth below 10%", "guidance cut"], "why": "Business consulting. 40% ROIC; adds Japan", "note": "Value pillar exactly at the 25 floor. If WInS rejects odd lots (100-share units), use alternate WKL"},
+    {"ticker": "MSCI", "name": "MSCI Inc.", "exchange": "NYSE", "country": "US", "ccy": "USD", "sector": "Financials", "industry": "Capital Markets (Financial Data)", "theme": null, "qvm": 62.3, "q": 78, "v": 51, "m": 52, "exp_return_pct": 13.5, "monthly_sd": 0.078, "stop_pct": 25, "target_shares": 4, "ref_price": 614.39, "next_earnings": "reported 2026-10-20", "thesis_breakers": ["revenue falls year on year"], "why": "Stock-market indexes. Recurring fees, calm stock"},
+    {"ticker": "META", "name": "Meta Platforms", "exchange": "Nasdaq", "country": "US", "ccy": "USD", "sector": "Communication Services", "industry": "Interactive Media", "theme": "AI", "qvm": 60.9, "q": 78, "v": 52, "m": 46, "exp_return_pct": 11.7, "monthly_sd": 0.124, "stop_pct": 30, "target_shares": 3, "ref_price": 644.61, "next_earnings": "reported 2026-10-21", "thesis_breakers": ["ad revenue falls year on year", "free cash flow turns negative"], "why": "Facebook, Instagram, WhatsApp. Huge cash from ads", "note": "Only ~2% above ma200: re-check E3 before buying"}
+  ],
+
+  "fx_reference_usd_per_unit": {"CAD": 0.71415, "SEK": 0.10061, "NOK": 0.10715, "JPY": 0.0063743},
+
+  "pending_orders": [
+    {"date": "2026-10-23", "session": "US/Canada, before 15:45 ET", "ticker": "NVDA", "side": "BUY", "shares": 10, "type": "MARKET", "tranche": "full"},
+    {"date": "2026-10-23", "session": "US/Canada, before 15:45 ET", "ticker": "ADBE", "side": "BUY", "shares": 8, "type": "MARKET", "tranche": "full"},
+    {"date": "2026-10-23", "session": "US/Canada, before 15:45 ET", "ticker": "ULTA", "side": "BUY", "shares": 4, "type": "MARKET", "tranche": "full"},
+    {"date": "2026-10-23", "session": "US/Canada, before 15:45 ET", "ticker": "APA", "side": "BUY", "shares": 42, "type": "MARKET", "tranche": "full"},
+    {"date": "2026-10-23", "session": "US/Canada, before 15:45 ET", "ticker": "META", "side": "BUY", "shares": 3, "type": "MARKET", "tranche": "full", "condition": "price > ma200"},
+    {"date": "2026-10-23", "session": "US/Canada, before 15:45 ET", "ticker": "INCY", "side": "BUY", "shares": 11, "type": "MARKET", "tranche": "1 of 2"},
+    {"date": "2026-10-23", "session": "US/Canada, before 15:45 ET", "ticker": "EXEL", "side": "BUY", "shares": 20, "type": "MARKET", "tranche": "1 of 2"},
+    {"date": "2026-10-23", "session": "US/Canada, before 15:45 ET", "ticker": "PAYC", "side": "BUY", "shares": 8, "type": "MARKET", "tranche": "full"},
+    {"date": "2026-10-23", "session": "US/Canada, before 15:45 ET", "ticker": "CF", "side": "BUY", "shares": 18, "type": "MARKET", "tranche": "full"},
+    {"date": "2026-10-23", "session": "US/Canada, before 15:45 ET", "ticker": "MSCI", "side": "BUY", "shares": 4, "type": "MARKET", "tranche": "full"},
+    {"date": "2026-10-23", "session": "US/Canada, before 15:45 ET", "ticker": "ATZ", "side": "BUY", "shares": 20, "type": "MARKET", "tranche": "full"},
+    {"date": "2026-10-26", "session": "Tokyo, after 09:30 JST", "ticker": "6532", "side": "BUY", "shares": 30, "type": "LIMIT", "limit": "ask", "tranche": "full"},
+    {"date": "2026-10-26", "session": "Stockholm, after 09:30 CET", "ticker": "EVO", "side": "BUY", "shares": 26, "type": "LIMIT", "limit": "ask", "tranche": "full"},
+    {"date": "2026-10-26", "session": "Oslo, after 09:30 CET", "ticker": "VAR", "side": "BUY", "shares": 345, "type": "LIMIT", "limit": "ask", "tranche": "full"},
+    {"date": "2026-10-30", "session": "US, after 10:00 ET", "ticker": "INCY", "side": "BUY", "shares": 11, "type": "MARKET", "tranche": "2 of 2", "condition": "after 29 Oct results; E1-E4 pass; no X1"},
+    {"date": "2026-10-30", "session": "US, after 10:00 ET", "ticker": "EXEL", "side": "BUY", "shares": 20, "type": "MARKET", "tranche": "2 of 2", "condition": "after 29 Oct results; E1-E4 pass; no X1"}
+  ],
+
+  "cash_plan_usd": {
+    "cash_before_stocks": 35595.62,
+    "after_MU": 33800,
+    "orders_2026_10_23": {"stocks": 22450, "commissions": 275},
+    "orders_2026_10_26": {"stocks": 6579, "commissions": 75},
+    "orders_2026_10_30": {"stocks": 2569, "commissions": 50},
+    "cash_left_after_all": 1800
+  },
+
+  "target_allocation": {
+    "account": {"treasury_bonds_usd": 245000, "indy_usd": 16660, "stocks_usd": 33370, "cash_usd": 1800},
+    "account_pct": {"treasury_bonds": 82.5, "indy": 5.6, "stocks": 11.2, "cash": 0.6},
+    "growth_bucket_pct": {"indy": 32, "stocks": 64, "cash": 4},
+    "sector_pct_of_stock_money": {"Consumer Discretionary": 20.7, "Information Technology": 18.0, "Health Care": 15.4, "Industrials": 13.2, "Energy": 13.0, "Financials": 7.4, "Materials": 6.6, "Communication Services": 5.8},
+    "country_stock_count": {"US": 11, "Canada": 1, "Sweden": 1, "Norway": 1, "Japan": 1},
+    "india_exposure": "50 companies via INDY",
+    "industries_at_limit": ["Semiconductors (MU, NVDA)", "Biotechnology (INCY, EXEL)", "Oil & Gas E&P (APA, VAR)", "Professional Services (PAYC, 6532)"],
+    "theme_ai_count": 3
+  },
+
+  "alternates": [
+    {"sector": "Health Care", "ticker": "603259", "name": "WuXi AppTec", "exchange": "Shanghai", "qvm": 72.6},
+    {"sector": "Health Care", "ticker": "HALO", "name": "Halozyme", "exchange": "Nasdaq", "qvm": 71.4, "note": "would be a 3rd biotech: breaks industry limit"},
+    {"sector": "Information Technology", "ticker": "ZM", "name": "Zoom Communications", "exchange": "Nasdaq", "qvm": 68.5},
+    {"sector": "Consumer Discretionary", "ticker": "NXT", "name": "Next plc", "exchange": "London", "qvm": 67.9},
+    {"sector": "Industrials", "ticker": "WKL", "name": "Wolters Kluwer", "exchange": "Amsterdam", "qvm": 61.4},
+    {"sector": "Industrials", "ticker": "AENA", "name": "Aena", "exchange": "Madrid", "qvm": 60.0}
+  ],
+
+  "watchlist_fails_E3_only": [
+    {"ticker": "HMY", "name": "Harmony Gold", "qvm": 72.2},
+    {"ticker": "AU", "name": "AngloGold Ashanti", "qvm": 71.8},
+    {"ticker": "LUG", "name": "Lundin Gold", "qvm": 71.5},
+    {"ticker": "005930", "name": "Samsung Electronics", "qvm": 66.7},
+    {"ticker": "NBIX", "name": "Neurocrine Biosciences", "qvm": 64.7},
+    {"ticker": "GOOG", "name": "Alphabet", "qvm": 64.5},
+    {"ticker": "600519", "name": "Kweichow Moutai", "qvm": 64.2}
+  ],
+
+  "plan_2028": {
+    "date": "2028-01-01",
+    "amount_usd": 150000,
+    "outside_wins": true,
+    "steps": [
+      {"step": 1, "always": true, "action": "Complete the reserve: buy IBTO, IBTP, IBTQ (iShares iBonds Dec 2033/2034/2035 Treasury ETFs) for the 2034-2036 payments", "base_case_usd": 72771, "base_case_shares": {"IBTO": 196, "IBTP": 1394, "IBTQ": 1478}, "stress_max_usd": 93930},
+      {"step": 2, "condition": "IBTM (Dec 2032 Treasury ETF) yield >= 4.5%", "action": "Put 40% of the remaining money into IBTM as a floor for the facility contribution", "base_case_usd": 30865, "base_case_shares": {"IBTM": 1422}},
+      {"step": 3, "action": "Split the rest 70% stocks (QVM rules) / 30% INDY", "base_case_usd": {"stocks": 32402, "indy": 13887}}
+    ],
+    "assumption": "Base case = Treasury yields unchanged to Jan 2028. If yields fall, step 1 costs more and step 2 is usually skipped; step 1 is always completed first."
+  },
+
+  "glide_path": [
+    {"date": "2031-01-01", "action": "Laura states her contribution range to co-sponsors. Move one-third of stocks + INDY into SGOV (facility cash)"},
+    {"date": "2032-01-01", "action": "Move half of the remaining stocks + INDY into SGOV"},
+    {"date": "2033-01-01", "action": "Pay operating payment 1 and the facility contribution; keep a $50,000 flexibility buffer invested"},
+    {"date": "2034-01-01 to 2042-01-01", "action": "One $50,000 payment each January from maturing bonds / bond funds"}
+  ],
+
+  "review_calendar": [
+    {"when": "Every Monday", "checks": ["market light", "any stock within 5% of its stop", "news vs thesis breakers", "earnings dates this week"]},
+    {"when": "First trading day of each month", "checks": ["month-end market light", "X5 trend check", "weights vs X6 and sector caps"]},
+    {"when": "After each earnings season (Feb, May, Aug, Nov)", "checks": ["full re-score of holdings and pool", "update thesis cards", "X2, X3, X7 decisions"]},
+    {"when": "Every January", "checks": ["parameter review and change log", "glide-path rebalance", "post-mortem"]}
+  ],
+
+  "open_decisions": [
+    {"id": "D1", "topic": "Money that rules cannot place (fewer than 15 qualifiers, or RED light)", "options": ["hold as cash", "add to INDY up to one-third of growth bucket"], "default_in_terminal": "hold as cash"},
+    {"id": "D2", "topic": "Stop style", "options": ["fixed stop at cost (current)", "quarterly ratchet (raise stop to 25/30% below price each quarter, never lower)", "WInS trailing stop"], "default_in_terminal": "fixed stop at cost"},
+    {"id": "D3", "topic": "2033-2036 payments", "options": ["saved bond interest + IBTO/IBTP/IBTQ in 2028 (planning model)", "Treasuries maturing Feb 2031 bought in 2028"], "default_in_terminal": "planning model"},
+    {"id": "D4", "topic": "Minimum share price", "options": ["$3 (WInS Session Rules)", "$5 (team notes from weekly emails)"], "default_in_terminal": "$3"},
+    {"id": "D5", "topic": "Bond ladder detail", "options": ["load the 6 bonds and quantities from WInS Open Positions"], "default_in_terminal": "load from WInS"}
+  ]
+}
